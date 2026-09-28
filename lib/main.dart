@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const DoneHaiApp());
 }
 
@@ -28,6 +31,7 @@ class GoalItem {
   String category;
   int streak;
   bool isDone;
+  String lastCompletedDate;
 
   GoalItem({
     required this.id,
@@ -35,7 +39,26 @@ class GoalItem {
     required this.category,
     required this.streak,
     this.isDone = false,
+    this.lastCompletedDate = '',
   });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'title': title,
+        'category': category,
+        'streak': streak,
+        'isDone': isDone,
+        'lastCompletedDate': lastCompletedDate,
+      };
+
+  factory GoalItem.fromMap(Map<String, dynamic> map) => GoalItem(
+        id: map['id'] ?? '',
+        title: map['title'] ?? '',
+        category: map['category'] ?? 'Calling Explorer',
+        streak: map['streak'] ?? 0,
+        isDone: map['isDone'] ?? false,
+        lastCompletedDate: map['lastCompletedDate'] ?? '',
+      );
 }
 
 class HomeScreen extends StatefulWidget {
@@ -47,29 +70,82 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String selectedFilter = 'All';
-
-  final List<GoalItem> goals = [
-    GoalItem(id: '1', title: 'Post 1 video daily', category: 'Calling Explorer', streak: 14),
-    GoalItem(id: '2', title: 'Subah BP dawai (Papa)', category: 'Health', streak: 28),
-    GoalItem(id: '3', title: 'Transfer ₹200 to savings', category: 'Money', streak: 8),
-    GoalItem(id: '4', title: 'Work out 45 min', category: 'Routine', streak: 34),
-    GoalItem(id: '5', title: '1 Coding lesson practice', category: 'Calling Explorer', streak: 12),
-    GoalItem(id: '6', title: '1 Mala Jaap / Shukrana', category: 'Karma', streak: 19),
-  ];
+  List<GoalItem> goals = [];
+  bool isLoading = true;
 
   final List<String> categories = ['All', 'Calling Explorer', 'Health', 'Money', 'Routine', 'Karma'];
 
+  @override
+  void initState() {
+    super.initState();
+    loadGoals();
+  }
+
+  String getTodayString() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> loadGoals() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rawData = prefs.getString('saved_goals');
+    final today = getTodayString();
+
+    if (rawData != null && rawData.isNotEmpty) {
+      try {
+        final List decoded = jsonDecode(rawData);
+        final loaded = decoded.map((e) => GoalItem.fromMap(e)).toList();
+
+        for (var goal in loaded) {
+          if (goal.lastCompletedDate != today) {
+            goal.isDone = false;
+          }
+        }
+        setState(() {
+          goals = loaded;
+          isLoading = false;
+        });
+        saveGoals();
+        return;
+      } catch (_) {}
+    }
+
+    setState(() {
+      goals = [
+        GoalItem(id: '1', title: 'Post 1 video daily', category: 'Calling Explorer', streak: 14),
+        GoalItem(id: '2', title: 'Subah BP dawai (Papa)', category: 'Health', streak: 28),
+        GoalItem(id: '3', title: 'Transfer ₹200 to savings', category: 'Money', streak: 8),
+        GoalItem(id: '4', title: 'Work out 45 min', category: 'Routine', streak: 34),
+        GoalItem(id: '5', title: '1 Coding lesson practice', category: 'Calling Explorer', streak: 12),
+        GoalItem(id: '6', title: '1 Mala Jaap / Shukrana', category: 'Karma', streak: 19),
+      ];
+      isLoading = false;
+    });
+    saveGoals();
+  }
+
+  Future<void> saveGoals() async {
+    final prefs = await SharedPreferences.getInstance();
+    final listMap = goals.map((g) => g.toMap()).toList();
+    await prefs.setString('saved_goals', jsonEncode(listMap));
+  }
+
   void toggleGoal(GoalItem goal) {
     HapticFeedback.lightImpact();
+    final today = getTodayString();
+
     setState(() {
       if (goal.isDone) {
         goal.isDone = false;
-        goal.streak = goal.streak - 1;
+        goal.streak = (goal.streak > 0) ? goal.streak - 1 : 0;
+        goal.lastCompletedDate = '';
       } else {
         goal.isDone = true;
         goal.streak = goal.streak + 1;
+        goal.lastCompletedDate = today;
       }
     });
+    saveGoals();
   }
 
   void addNewGoal(String title, String category) {
@@ -85,6 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     });
+    saveGoals();
   }
 
   void showAddDialog() {
@@ -119,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 controller: titleController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Goal ka naam (e.g. Roz 10k steps)',
+                  hintText: 'Goal ka naam (e.g. Daily SIP, Running)',
                   hintStyle: TextStyle(color: Colors.grey[600]),
                   filled: true,
                   fillColor: const Color(0xFF23232A),
@@ -169,6 +246,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
+      );
+    }
+
     final filteredGoals = selectedFilter == 'All'
         ? goals
         : goals.where((g) => g.category == selectedFilter).toList();
