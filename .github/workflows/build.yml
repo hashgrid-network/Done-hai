@@ -1,0 +1,50 @@
+name: Build Done Hai APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.x'
+          channel: 'stable'
+
+      - name: Auto-Initialize Flutter Project
+        run: |
+          if [ ! -f pubspec.yaml ]; then
+            echo "Creating Flutter base files..."
+            flutter create . --project-name done_hai --org com.donehai --overwrite
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git add .
+            git commit -m "Initialize Flutter base files"
+            git push origin main
+          fi
+
+      - name: Build Android Release APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: done-hai-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
