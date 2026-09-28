@@ -209,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     selected: isSelected,
                     onSelected: (val) => setState(() => selectedFilter = cat),
                     backgroundColor: const Color(0xFF1E1E24),
-                    selectedColor: const Color(0xFF10B981).withValues(alpha: 0.2),
+                    selectedColor: const Color(0xFF10B981).withOpacity(0.2),
                     labelStyle: TextStyle(
                       color: isSelected ? const Color(0xFF10B981) : Colors.grey[400],
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -294,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           onPressed: () => toggleGoal(goal),
                           child: Text(
-                            goal.isDone ? '✓ Yes (Done)' : 'Pending',
+                            goal.isDone ? '✓ Yes' : 'Pending',
                             style: TextStyle(
                               color: goal.isDone ? Colors.black : Colors.grey[300],
                               fontWeight: FontWeight.bold,
